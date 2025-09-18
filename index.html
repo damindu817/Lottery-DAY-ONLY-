@@ -1058,24 +1058,22 @@
         return;
       }
       
-      lotteryData.forEach((record, index) => {
+      lotteryData.forEach((r, i) => {
         const tr = document.createElement("tr");
-        
         tr.innerHTML = `
-          <td>${index + 1}</td>
-          <td>${record.date}</td>
-          <td>${record.code}</td>
-          <td>${record.last2}</td>
-          <td>${record.digits6}</td>
+          <td>${i+1}</td>
+          <td>${r.date ?? "-"}</td>
+          <td>${r.code ?? "-"}</td>
+          <td>${r.last2 ?? "-"}</td>
+          <td>${r.code} ${r.digits6 ? r.digits6.match(/.{1}/g).join(' ') : "-"}</td>
         `;
-        
         tbody.appendChild(tr);
       });
     }
 
-    // Reset inputs
+    // Reset all inputs
     function resetInputs() {
-      document.getElementById('dateInput').value = '';
+      document.getElementById('dateInput').value = "";
       document.getElementById('matches').innerHTML = `
         <div class="no-match">
           <i class="fas fa-info-circle"></i> වක්‍රී-පද්ධතිය සූදානම් — දිනයක් තෝරා "විශ්ලේෂණය කරන්න" ඔබන්න.
@@ -1083,43 +1081,12 @@
       `;
     }
 
-    // Show loading animation
-    function showLoadingAnimation() {
-      const overlay = document.getElementById('animationOverlay');
-      const progressFill = document.getElementById('progressFill');
-      
-      overlay.classList.add('visible');
-      progressFill.style.width = '0%';
-      
-      // Animate progress bar
-      setTimeout(() => {
-        progressFill.style.width = '100%';
-      }, 50);
-      
-      // Create floating lottery balls
-      const animationArea = document.getElementById('lotteryAnimation');
-      animationArea.innerHTML = '';
-      
-      for (let i = 0; i < 6; i++) {
-        const ball = document.createElement('div');
-        ball.className = `lottery-ball ball-${i+1}`;
-        ball.textContent = i+1;
-        
-        // Random position and animation delay
-        const left = Math.random() * 90;
-        const delay = Math.random() * 2;
-        
-        ball.style.left = `${left}%`;
-        ball.style.animation = `ballFloat ${4 + Math.random() * 3}s ${delay}s forwards`;
-        
-        animationArea.appendChild(ball);
-      }
-    }
-
-    // Hide loading animation
-    function hideLoadingAnimation() {
-      const overlay = document.getElementById('animationOverlay');
-      overlay.classList.remove('visible');
+    // Calculate single digit sum
+    function digitSum(num) {
+      if (num < 10) return num;
+      return digitSum(
+        num.toString().split('').reduce((sum, digit) => sum + parseInt(digit), 0)
+      );
     }
 
     // Analyze numbers based on selected date
@@ -1127,141 +1094,169 @@
       const dateInput = document.getElementById('dateInput').value;
       
       if (!dateInput) {
-        showAlert('දත්ත ආදානය', 'කරුණාකර විශ්ලේෂණය සඳහා දිනයක් තෝරන්න');
+        showAlert('දත්ත ඇතුලත් කිරීම', 'කරුණාකර දිනයක් තෝරන්න');
         return;
       }
       
       // Show loading animation
       showLoadingAnimation();
       
-      // Simulate processing time
+      // Process after a small delay to allow animation to show
       setTimeout(() => {
         try {
-          // Extract month and day from the input date
-          const inputDate = new Date(dateInput);
-          const inputMonth = inputDate.getMonth() + 1; // Months are 0-indexed
-          const inputDay = inputDate.getDate();
+          // Parse the selected date
+          const selectedDate = new Date(dateInput);
+          const selectedDay = selectedDate.getDate(); // 1-31
           
-          // Find all records that match the day and month (ignoring year)
+          // Filter records by day only (ignoring month and year)
           const matches = lotteryData.filter(record => {
             if (!record._parsedDate) return false;
             
-            const recordMonth = record._parsedDate.getMonth() + 1;
             const recordDay = record._parsedDate.getDate();
             
-            return recordMonth === inputMonth && recordDay === inputDay;
+            return recordDay === selectedDay;
           });
           
           // Display results
-          displayResults(matches, inputMonth, inputDay);
-          
-          hideLoadingAnimation();
+          displayResults(matches, selectedDay);
         } catch (error) {
-          console.error('Analysis error:', error);
+          console.error('Error analyzing numbers:', error);
+          showAlert('විශ්ලේෂණ දෝෂය', error.message);
+        } finally {
+          // Hide loading animation
           hideLoadingAnimation();
-          showAlert('විශ්ලේෂණ දෝෂය', 'දත්ත විශ්ලේෂණය කිරීමේදී දෝෂයක් ඇති විය');
         }
-      }, 2000);
+      }, 500);
     }
 
     // Display analysis results
-    function displayResults(matches, month, day) {
+    function displayResults(matches, selectedDay) {
       const matchesContainer = document.getElementById('matches');
       
       if (matches.length === 0) {
         matchesContainer.innerHTML = `
           <div class="no-match">
-            <i class="fas fa-search"></i> ${month} මාසයේ ${day} වැනිදාට ගැලපෙන ප්‍රතිඵල කිසිවක් හමු නොවීය
+            <i class="fas fa-search"></i> ${selectedDay} වැනිදාට ගැලපෙන ප්‍රතිඵල කිසිවක් හමු නොවීය
           </div>
         `;
         return;
       }
       
-      let resultsHTML = '';
+      // Create summary card
+      let resultsHTML = `
+        <div class="box-card">
+          <div class="box-header">
+            <h3><i class="fas fa-calendar-check"></i> ${selectedDay} වැනිදා</h3>
+            <span class="box-badge">${matches.length} ගැලපීම්</span>
+          </div>
+          <div class="match-list">
+      `;
       
-      // Group matches by year for better organization
-      const matchesByYear = {};
+      // Process each match
       matches.forEach(match => {
-        const year = match._parsedDate ? match._parsedDate.getFullYear() : 'Unknown';
-        if (!matchesByYear[year]) {
-          matchesByYear[year] = [];
-        }
-        matchesByYear[year].push(match);
-      });
-      
-      // Sort years in descending order
-      const sortedYears = Object.keys(matchesByYear).sort((a, b) => b - a);
-      
-      // Create result boxes for each year
-      sortedYears.forEach(year => {
-        const yearMatches = matchesByYear[year];
+        // Calculate the required values
+        const firstThree = match.numbers.slice(0, 3);
+        const lastThree = match.numbers.slice(3);
         
-        resultsHTML += `
-          <div class="box-card">
-            <div class="box-header">
-              <h3><i class="fas fa-calendar"></i> ${year} වර්ෂය</h3>
-              <span class="box-badge">${yearMatches.length} ප්‍රතිඵල</span>
-            </div>
-            <div class="match-list">
-        `;
+        const firstSum = firstThree.reduce((a, b) => a + b, 0);
+        const lastSum = lastThree.reduce((a, b) => a + b, 0);
         
-        yearMatches.forEach(match => {
-          // Format the numbers with special styling
-          const numbersHTML = match.numbers.map((num, idx) => 
-            `<span style="display: inline-block; background: var(--ball-${idx+1}); 
-                         color: #071022; width: 32px; height: 32px; border-radius: 50%; 
-                         text-align: center; line-height: 32px; font-weight: bold; 
-                         margin: 0 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">${num}</span>`
-          ).join('');
-          
-          resultsHTML += `
-            <div class="match-item">
-              <div class="match-meta">
-                <b>${match.date}</b>
-                කේතය: ${match.code}
-              </div>
-              <div class="match-content">
-                <div class="match-digits">
-                  ${numbersHTML}
-                </div>
-                <div class="match-full">
-                  සම්පූර්ණ අංකය: ${match.digits6}
-                </div>
-              </div>
-              <div class="match-below ${match.last2 === '00' ? 'highlight' : ''}">
-                අවසාන 2: ${match.last2}
-              </div>
-            </div>
-          `;
+        const firstDigit = digitSum(firstSum);
+        const lastDigit = digitSum(lastSum);
+        
+        const finalResult = digitSum(firstDigit + lastDigit);
+        
+        // Format the record date
+        const recordDate = match._parsedDate.toLocaleDateString('si-LK', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
         });
         
         resultsHTML += `
+          <div class="match-item">
+            <div class="match-meta">
+              <b>${recordDate}</b>
+              කේතය: ${match.code}
+            </div>
+            <div class="match-content">
+              <div class="match-digits">
+                ${match.digits6.substring(0, 3)} ${match.digits6.substring(3)}
+              </div>
+              <div class="match-full">
+                ${match.digits6.split('').join(' ')}
+              </div>
+            </div>
+            <div class="match-below">
+              පළමු 3: ${firstThree.join('+')} = ${firstSum} → ${firstDigit}
+            </div>
+            <div class="match-below">
+              අවසාන 3: ${lastThree.join('+')} = ${lastSum} → ${lastDigit}
+            </div>
+            <div class="match-below highlight">
+              අවසාන ප්‍රතිඵල: ${firstDigit}+${lastDigit} = ${finalResult}
             </div>
           </div>
         `;
       });
       
-      // Add summary
-      resultsHTML = `
-        <div class="box-card">
-          <div class="box-header">
-            <h3><i class="fas fa-chart-pie"></i> සාරාංශය</h3>
-            <span class="box-badge">${matches.length} සම්පූර්ණ ගැලපීම්</span>
+      resultsHTML += `
           </div>
-          <p style="margin: 0; font-size: 14px; color: var(--muted);">
-            ${month} මාසයේ ${day} වැනිදාට අදාළ සියලුම වර්ෂවල ප්‍රතිඵල පෙන්වයි. 
-            වර්ෂය නොසලකා හරිනු ලැබේ.
-          </p>
         </div>
-      ` + resultsHTML;
+      `;
       
       matchesContainer.innerHTML = resultsHTML;
+    }
+
+    // Show loading animation
+    function showLoadingAnimation() {
+      const overlay = document.getElementById('animationOverlay');
+      const progressFill = document.getElementById('progressFill');
+      const lotteryAnimation = document.getElementById('lotteryAnimation');
+      
+      // Reset and show overlay
+      overlay.classList.add('visible');
+      progressFill.style.width = '0%';
+      
+      // Start progress bar
+      setTimeout(() => {
+        progressFill.style.width = '100%';
+      }, 50);
+      
+      // Create lottery balls animation
+      lotteryAnimation.innerHTML = '';
+      const colors = ['ball-1', 'ball-2', 'ball-3', 'ball-4', 'ball-5', 'ball-6'];
+      
+      for (let i = 0; i < 6; i++) {
+        const ball = document.createElement('div');
+        ball.className = `lottery-ball ${colors[i]}`;
+        ball.textContent = i + 1;
+        
+        // Random horizontal position
+        const left = Math.random() * 85 + 5; // 5% to 90%
+        ball.style.left = `${left}%`;
+        
+        // Random delay and duration
+        const delay = Math.random() * 1.5;
+        const duration = 3 + Math.random() * 2;
+        
+        ball.style.animation = `
+          ${duration}s ease-out ${delay}s 1 normal forwards ballFloat
+        `;
+        
+        lotteryAnimation.appendChild(ball);
+      }
+    }
+
+    // Hide loading animation
+    function hideLoadingAnimation() {
+      document.getElementById('animationOverlay').classList.remove('visible');
     }
 
     // Export to Excel
     function exportToExcel() {
       if (lotteryData.length === 0) {
-        showAlert('අපනයන දෝෂය', 'අපනයනය කිරීම සඳහා දත්ත නොමැත');
+        showAlert('අපනයන දෝෂය', 'පත්‍රයක් නිර්මාණය කිරීමට දත්ත නොමැත');
         return;
       }
       
@@ -1276,47 +1271,45 @@
         
         // Create workbook
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Lottery Results');
+        XLSX.utils.book_append_sheet(wb, ws, 'Lottery Records');
         
-        // Generate Excel file and trigger download
-        XLSX.writeFile(wb, 'lottery_results.xlsx');
+        // Export to file
+        XLSX.writeFile(wb, 'lottery_records.xlsx');
         
-        showAlert('අපනයන සාර්ථකයි', 'Excel ගොනුව සාර්ථකව බාගත කරන ලදී', 3000);
+        showAlert('සාර්ථක අපනයනය', 'Excel ගොනුව සාර්ථකව බාගත කරන ලදී');
       } catch (error) {
-        console.error('Excel export error:', error);
-        showAlert('අපනයන දෝෂය', 'Excel ගොනුව ජනනය කිරීමේදී දෝෂයක් ඇති විය');
+        console.error('Error exporting to Excel:', error);
+        showAlert('අපනයන දෝෂය', error.message);
       }
     }
 
     // Copy to clipboard
     function copyToClipboard() {
       if (lotteryData.length === 0) {
-        showAlert('පිටපත් කිරීමේ දෝෂය', 'පිටපත් කිරීම සඳහා දත්ත නොමැත');
+        showAlert('පසුරු පුවරු දෝෂය', 'පසුරු පුවරුවට පිටපත් කිරීමට දත්ත නොමැත');
         return;
       }
       
       try {
         // Create text representation
-        const textData = lotteryData.map(r => 
-          `${r.date}\t${r.code}\t${r.digits6}\t${r.last2}`
-        ).join('\n');
-        
-        // Add header
-        const text = 'දිනය\tකේතය\t6 අංක\tඅවසන් 2\n' + textData;
+        let text = 'දිනය\tකේතය\t6 අංක\tඅවසන් 2\n';
+        lotteryData.forEach(r => {
+          text += `${r.date}\t${r.code}\t${r.digits6}\t${r.last2}\n`;
+        });
         
         // Copy to clipboard
         navigator.clipboard.writeText(text).then(() => {
-          showAlert('පිටපත් කිරීම සාර්ථකයි', 'දත්ත පිටපත් කර ඇත', 3000);
+          showAlert('පසුරු පුවරුව', 'දත්ත පසුරු පුවරුවට පිටපත් කරන ලදී');
         }).catch(err => {
-          throw new Error('Clipboard access denied');
+          throw new Error('පසුරු පුවරුවට පිටපත් කිරීමට නොහැකි විය');
         });
       } catch (error) {
-        console.error('Copy error:', error);
-        showAlert('පිටපත් කිරීමේ දෝෂය', 'දත්ත පිටපත් කිරීමේදී දෝෂයක් ඇති විය');
+        console.error('Error copying to clipboard:', error);
+        showAlert('පසුරු පුවරු දෝෂය', error.message);
       }
     }
 
-    // Initialize the app when DOM is loaded
+    // Initialize the app when the DOM is loaded
     document.addEventListener('DOMContentLoaded', initApp);
   </script>
 </body>
