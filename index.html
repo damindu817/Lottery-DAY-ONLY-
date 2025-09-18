@@ -800,7 +800,7 @@
     <!-- Header -->
     <header class="app-header">
       <h1><i class="fas fa-chart-line"></i> Lottery Results Analyzer</h1>
-      <p>තෝරාගත් දවසට අදාළව සියලු ගැලපීම් සහ ඒවාට අනුරූප ඉහළ draw-වල ප්‍රතිඵල පෙන්වයි</p>
+      <p>තෝරාගත් දිනයට අදාළව සියලු ගැලපීම් සහ ඒවාට අනුරූප ඉහළ draw-වල ප්‍රතිඵල පෙන්වයි</p>
       <div class="live-clock">
         <i class="fas fa-clock"></i>
         <span id="currentDateTime">ලබනුයේ...</span>
@@ -1058,22 +1058,24 @@
         return;
       }
       
-      lotteryData.forEach((r, i) => {
+      lotteryData.forEach((record, index) => {
         const tr = document.createElement("tr");
+        
         tr.innerHTML = `
-          <td>${i+1}</td>
-          <td>${r.date ?? "-"}</td>
-          <td>${r.code ?? "-"}</td>
-          <td>${r.last2 ?? "-"}</td>
-          <td>${r.code} ${r.digits6 ? r.digits6.match(/.{1}/g).join(' ') : "-"}</td>
+          <td>${index + 1}</td>
+          <td>${record.date}</td>
+          <td>${record.code}</td>
+          <td>${record.last2}</td>
+          <td>${record.digits6}</td>
         `;
+        
         tbody.appendChild(tr);
       });
     }
 
-    // Reset all inputs
+    // Reset inputs
     function resetInputs() {
-      document.getElementById('dateInput').value = "";
+      document.getElementById('dateInput').value = '';
       document.getElementById('matches').innerHTML = `
         <div class="no-match">
           <i class="fas fa-info-circle"></i> වක්‍රී-පද්ධතිය සූදානම් — දිනයක් තෝරා "විශ්ලේෂණය කරන්න" ඔබන්න.
@@ -1086,28 +1088,30 @@
       const overlay = document.getElementById('animationOverlay');
       const progressFill = document.getElementById('progressFill');
       
-      // Reset progress bar
-      progressFill.style.width = '0%';
-      
-      // Show overlay
       overlay.classList.add('visible');
+      progressFill.style.width = '0%';
       
       // Animate progress bar
       setTimeout(() => {
         progressFill.style.width = '100%';
-      }, 100);
+      }, 50);
       
-      // Create lottery balls animation
+      // Create floating lottery balls
       const animationArea = document.getElementById('lotteryAnimation');
       animationArea.innerHTML = '';
       
       for (let i = 0; i < 6; i++) {
         const ball = document.createElement('div');
         ball.className = `lottery-ball ball-${i+1}`;
-        ball.innerHTML = i+1;
-        ball.style.left = `${10 + (i * 15)}%`;
-        ball.style.animationDelay = `${i * 0.5}s`;
-        ball.style.animation = `ballFloat ${4 + i}s ease-in-out forwards`;
+        ball.textContent = i+1;
+        
+        // Random position and animation delay
+        const left = Math.random() * 90;
+        const delay = Math.random() * 2;
+        
+        ball.style.left = `${left}%`;
+        ball.style.animation = `ballFloat ${4 + Math.random() * 3}s ${delay}s forwards`;
+        
         animationArea.appendChild(ball);
       }
     }
@@ -1118,221 +1122,151 @@
       overlay.classList.remove('visible');
     }
 
-    // Main analysis function
+    // Analyze numbers based on selected date
     function analyzeNumbers() {
       const dateInput = document.getElementById('dateInput').value;
       
       if (!dateInput) {
-        showAlert('දත්ත ආදානය', 'කරුණාකර දිනයක් තෝරන්න', 3000);
-        return;
-      }
-      
-      // Find the record for the selected date
-      const selectedRecord = lotteryData.find(r => r.date === dateInput);
-      
-      if (!selectedRecord) {
-        showAlert('දත්ත නැත', 'තෝරාගත් දිනය සඳහා ප්‍රතිඵල නැත', 3000);
+        showAlert('දත්ත ආදානය', 'කරුණාකර විශ්ලේෂණය සඳහා දිනයක් තෝරන්න');
         return;
       }
       
       // Show loading animation
       showLoadingAnimation();
       
-      // Process the analysis after a short delay to allow animation to show
+      // Simulate processing time
       setTimeout(() => {
         try {
-          // Get the numbers from the selected date
-          const selectedNumbers = selectedRecord.numbers || [];
+          // Extract month and day from the input date
+          const inputDate = new Date(dateInput);
+          const inputMonth = inputDate.getMonth() + 1; // Months are 0-indexed
+          const inputDay = inputDate.getDate();
           
-          if (selectedNumbers.length === 0) {
-            throw new Error('තෝරාගත් දිනයේ අංක නිසි ලෙස ලබා ගත නොහැකි විය');
-          }
+          // Find all records that match the day and month (ignoring year)
+          const matches = lotteryData.filter(record => {
+            if (!record._parsedDate) return false;
+            
+            const recordMonth = record._parsedDate.getMonth() + 1;
+            const recordDay = record._parsedDate.getDate();
+            
+            return recordMonth === inputMonth && recordDay === inputDay;
+          });
           
-          // Find matches in previous draws
-          const matches = findMatches(selectedNumbers);
+          // Display results
+          displayResults(matches, inputMonth, inputDay);
           
-          // Display the results
-          displayResults(selectedRecord, matches);
-          
-          // Hide loading animation
           hideLoadingAnimation();
         } catch (error) {
           console.error('Analysis error:', error);
           hideLoadingAnimation();
-          showAlert('විශ්ලේෂණ දෝෂය', error.message);
+          showAlert('විශ්ලේෂණ දෝෂය', 'දත්ත විශ්ලේෂණය කිරීමේදී දෝෂයක් ඇති විය');
         }
-      }, 1500);
-    }
-
-    // Find matches in previous draws
-    function findMatches(selectedNumbers) {
-      const matches = {
-        full: [],     // Full 6-digit matches
-        five: [],     // 5-digit matches
-        four: [],     // 4-digit matches
-        three: [],    // 3-digit matches
-        two: [],      // 2-digit matches
-        one: []       // 1-digit matches
-      };
-      
-      // Get the index of the selected record
-      const selectedIdx = lotteryData.findIndex(r => 
-        r.numbers && 
-        r.numbers.length === selectedNumbers.length && 
-        r.numbers.every((n, i) => n === selectedNumbers[i])
-      );
-      
-      if (selectedIdx === -1) {
-        return matches;
-      }
-      
-      // Only check records before the selected date
-      for (let i = selectedIdx + 1; i < lotteryData.length; i++) {
-        const record = lotteryData[i];
-        
-        // Skip if record doesn't have numbers
-        if (!record.numbers || record.numbers.length === 0) {
-          continue;
-        }
-        
-        // Count matching digits
-        const matchCount = countMatchingDigits(selectedNumbers, record.numbers);
-        
-        // Add to appropriate match category
-        if (matchCount === 6) {
-          matches.full.push(record);
-        } else if (matchCount === 5) {
-          matches.five.push(record);
-        } else if (matchCount === 4) {
-          matches.four.push(record);
-        } else if (matchCount === 3) {
-          matches.three.push(record);
-        } else if (matchCount === 2) {
-          matches.two.push(record);
-        } else if (matchCount === 1) {
-          matches.one.push(record);
-        }
-      }
-      
-      return matches;
-    }
-
-    // Count matching digits between two arrays
-    function countMatchingDigits(arr1, arr2) {
-      return arr1.filter(num => arr2.includes(num)).length;
+      }, 2000);
     }
 
     // Display analysis results
-    function displayResults(selectedRecord, matches) {
-      const resultsContainer = document.getElementById('matches');
-      resultsContainer.innerHTML = '';
+    function displayResults(matches, month, day) {
+      const matchesContainer = document.getElementById('matches');
       
-      // Display the selected numbers
-      const selectedNumbersHtml = selectedRecord.numbers.map(n => 
-        `<span class="ball ball-${n}">${n}</span>`
-      ).join('');
-      
-      resultsContainer.innerHTML += `
-        <div class="box-card">
-          <div class="box-header">
-            <h3><i class="fas fa-calendar-check"></i> තෝරාගත් දිනය</h3>
-            <span class="box-badge">${selectedRecord.date}</span>
+      if (matches.length === 0) {
+        matchesContainer.innerHTML = `
+          <div class="no-match">
+            <i class="fas fa-search"></i> ${month} මාසයේ ${day} වැනිදාට ගැලපෙන ප්‍රතිඵල කිසිවක් හමු නොවීය
           </div>
-          <div class="match-item">
-            <div class="match-meta">
-              <b>${selectedRecord.code}</b>
-              ${selectedRecord.date}
-            </div>
-            <div class="match-content">
-              <div class="match-digits">${selectedNumbersHtml}</div>
-              <div class="match-full">අවසන් 2: ${selectedRecord.last2}</div>
-            </div>
-            <div class="match-below">
-              <i class="fas fa-info-circle"></i> මෙම draw-යේ අංක සමඟ පහත draw-වල ගැලපීම්
-            </div>
-          </div>
-        </div>
-      `;
+        `;
+        return;
+      }
       
-      // Display matches for each category
-      const matchCategories = [
-        { type: 'full', title: 'සම්පූර්ණ ගැලපීම් (6 අංක)', icon: 'fas fa-trophy' },
-        { type: 'five', title: '5 අංක ගැලපීම්', icon: 'fas fa-star' },
-        { type: 'four', title: '4 අංක ගැලපීම්', icon: 'fas fa-award' },
-        { type: 'three', title: '3 අංක ගැලපීම්', icon: 'fas fa-medal' },
-        { type: 'two', title: '2 අංක ගැලපීම්', icon: 'fas fa-heart' },
-        { type: 'one', title: '1 අංක ගැලපීම්', icon: 'fas fa-circle' }
-      ];
+      let resultsHTML = '';
       
-      matchCategories.forEach(category => {
-        const categoryMatches = matches[category.type];
+      // Group matches by year for better organization
+      const matchesByYear = {};
+      matches.forEach(match => {
+        const year = match._parsedDate ? match._parsedDate.getFullYear() : 'Unknown';
+        if (!matchesByYear[year]) {
+          matchesByYear[year] = [];
+        }
+        matchesByYear[year].push(match);
+      });
+      
+      // Sort years in descending order
+      const sortedYears = Object.keys(matchesByYear).sort((a, b) => b - a);
+      
+      // Create result boxes for each year
+      sortedYears.forEach(year => {
+        const yearMatches = matchesByYear[year];
         
-        if (categoryMatches.length > 0) {
-          let matchListHtml = '';
+        resultsHTML += `
+          <div class="box-card">
+            <div class="box-header">
+              <h3><i class="fas fa-calendar"></i> ${year} වර්ෂය</h3>
+              <span class="box-badge">${yearMatches.length} ප්‍රතිඵල</span>
+            </div>
+            <div class="match-list">
+        `;
+        
+        yearMatches.forEach(match => {
+          // Format the numbers with special styling
+          const numbersHTML = match.numbers.map((num, idx) => 
+            `<span style="display: inline-block; background: var(--ball-${idx+1}); 
+                         color: #071022; width: 32px; height: 32px; border-radius: 50%; 
+                         text-align: center; line-height: 32px; font-weight: bold; 
+                         margin: 0 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">${num}</span>`
+          ).join('');
           
-          categoryMatches.forEach(match => {
-            const numbersHtml = match.numbers.map(n => 
-              `<span class="ball ball-${n}">${n}</span>`
-            ).join('');
-            
-            // Highlight if the last2 digits also match
-            const last2Match = match.last2 === selectedRecord.last2;
-            
-            matchListHtml += `
-              <div class="match-item">
-                <div class="match-meta">
-                  <b>${match.code}</b>
-                  ${match.date}
+          resultsHTML += `
+            <div class="match-item">
+              <div class="match-meta">
+                <b>${match.date}</b>
+                කේතය: ${match.code}
+              </div>
+              <div class="match-content">
+                <div class="match-digits">
+                  ${numbersHTML}
                 </div>
-                <div class="match-content">
-                  <div class="match-digits">${numbersHtml}</div>
-                  <div class="match-full">අවසන් 2: ${match.last2}</div>
-                </div>
-                <div class="match-below ${last2Match ? 'highlight' : ''}">
-                  <i class="fas fa-${last2Match ? 'check-circle' : 'circle'}"></i> 
-                  අවසන් 2: ${last2Match ? 'ගැලපේ' : 'ගැලපෙන්නේ නැත'}
+                <div class="match-full">
+                  සම්පූර්ණ අංකය: ${match.digits6}
                 </div>
               </div>
-            `;
-          });
-          
-          resultsContainer.innerHTML += `
-            <div class="box-card">
-              <div class="box-header">
-                <h3><i class="${category.icon}"></i> ${category.title}</h3>
-                <span class="box-badge">${categoryMatches.length} matches</span>
-              </div>
-              <div class="match-list">
-                ${matchListHtml}
+              <div class="match-below ${match.last2 === '00' ? 'highlight' : ''}">
+                අවසාන 2: ${match.last2}
               </div>
             </div>
           `;
-        }
-      });
-      
-      // Show message if no matches found
-      const totalMatches = Object.values(matches).reduce((sum, arr) => sum + arr.length, 0);
-      
-      if (totalMatches === 0) {
-        resultsContainer.innerHTML += `
-          <div class="box-card">
-            <div class="no-match">
-              <i class="fas fa-search"></i> තෝරාගත් දිනය සඳහා පසුව ඇති draw-වල කිසිදු ගැලපීමක් හමු නොවීය
+        });
+        
+        resultsHTML += `
             </div>
           </div>
         `;
-      }
+      });
+      
+      // Add summary
+      resultsHTML = `
+        <div class="box-card">
+          <div class="box-header">
+            <h3><i class="fas fa-chart-pie"></i> සාරාංශය</h3>
+            <span class="box-badge">${matches.length} සම්පූර්ණ ගැලපීම්</span>
+          </div>
+          <p style="margin: 0; font-size: 14px; color: var(--muted);">
+            ${month} මාසයේ ${day} වැනිදාට අදාළ සියලුම වර්ෂවල ප්‍රතිඵල පෙන්වයි. 
+            වර්ෂය නොසලකා හරිනු ලැබේ.
+          </p>
+        </div>
+      ` + resultsHTML;
+      
+      matchesContainer.innerHTML = resultsHTML;
     }
 
     // Export to Excel
     function exportToExcel() {
       if (lotteryData.length === 0) {
-        showAlert('අපනයන දෝෂය', 'අපනයනය කිරීමට දත්ත නොමැත', 3000);
+        showAlert('අපනයන දෝෂය', 'අපනයනය කිරීම සඳහා දත්ත නොමැත');
         return;
       }
       
       try {
-        // Create worksheet from data
+        // Create worksheet
         const ws = XLSX.utils.json_to_sheet(lotteryData.map(r => ({
           'දිනය': r.date,
           'කේතය': r.code,
@@ -1345,47 +1279,44 @@
         XLSX.utils.book_append_sheet(wb, ws, 'Lottery Results');
         
         // Generate Excel file and trigger download
-        const date = new Date().toISOString().slice(0, 10);
-        XLSX.writeFile(wb, `lottery_results_${date}.xlsx`);
+        XLSX.writeFile(wb, 'lottery_results.xlsx');
         
-        showAlert('සාර්ථක අපනයනය', 'Excel ගොනුව සාර්ථකව බාගත කරන ලදී', 3000);
+        showAlert('අපනයන සාර්ථකයි', 'Excel ගොනුව සාර්ථකව බාගත කරන ලදී', 3000);
       } catch (error) {
         console.error('Excel export error:', error);
-        showAlert('අපනයන දෝෂය', 'Excel ගොනුව ජනනය කිරීමේදී දෝෂයක් ඇති විය', 3000);
+        showAlert('අපනයන දෝෂය', 'Excel ගොනුව ජනනය කිරීමේදී දෝෂයක් ඇති විය');
       }
     }
 
     // Copy to clipboard
     function copyToClipboard() {
       if (lotteryData.length === 0) {
-        showAlert('පසුරු පුවරුවේ දෝෂය', 'පිටපත් කිරීමට දත්ත නොමැත', 3000);
+        showAlert('පිටපත් කිරීමේ දෝෂය', 'පිටපත් කිරීම සඳහා දත්ත නොමැත');
         return;
       }
       
       try {
-        // Create text representation of data
+        // Create text representation
         const textData = lotteryData.map(r => 
           `${r.date}\t${r.code}\t${r.digits6}\t${r.last2}`
         ).join('\n');
         
-        // Add headers
-        const textToCopy = 'දිනය\tකේතය\t6 අංක\tඅවසන් 2\n' + textData;
+        // Add header
+        const text = 'දිනය\tකේතය\t6 අංක\tඅවසන් 2\n' + textData;
         
         // Copy to clipboard
-        navigator.clipboard.writeText(textToCopy)
-          .then(() => {
-            showAlert('පසුරු පුවරුව', 'දත්ත පසුරු පුවරුවට පිටපත් කරන ලදී', 3000);
-          })
-          .catch(err => {
-            throw new Error('පසුරු පුවරුවට පිටපත් කිරීමට නොහැකි විය');
-          });
+        navigator.clipboard.writeText(text).then(() => {
+          showAlert('පිටපත් කිරීම සාර්ථකයි', 'දත්ත පිටපත් කර ඇත', 3000);
+        }).catch(err => {
+          throw new Error('Clipboard access denied');
+        });
       } catch (error) {
-        console.error('Copy to clipboard error:', error);
-        showAlert('පසුරු පුවරුවේ දෝෂය', error.message, 3000);
+        console.error('Copy error:', error);
+        showAlert('පිටපත් කිරීමේ දෝෂය', 'දත්ත පිටපත් කිරීමේදී දෝෂයක් ඇති විය');
       }
     }
 
-    // Initialize the app when the DOM is loaded
+    // Initialize the app when DOM is loaded
     document.addEventListener('DOMContentLoaded', initApp);
   </script>
 </body>
